@@ -1,3 +1,5 @@
+
+
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
 # """
@@ -136,18 +138,13 @@
 #         advisory_id = next_advisory_id(created_at, last_id_num)
 #         vendor_id = get_or_create_vendor_id(cur, "Gradle")
 
-#         # Advisory severity
-#         adv_severity = data.get("Severity") or cve_details.get("Severity")
-#         if not adv_severity:
-#             adv_severity = None
-
-#         # Insert Advisory
+#         # ------------------------- Insert Advisory with severity NULL -------------------------
 #         cur.execute(f"""
 #             INSERT INTO {TABLE_ADVISORIES} 
 #             (advisory_id, vendor_id, title, severity, initial_release_date, advisory_url)
-#             VALUES (%s, %s, %s, %s, %s, %s)
+#             VALUES (%s, %s, %s, NULL, %s, %s)
 #             ON CONFLICT (advisory_id) DO NOTHING
-#         """, (advisory_id, vendor_id, title, adv_severity, created_at, advisory_url))
+#         """, (advisory_id, vendor_id, title, created_at, advisory_url))
 
 #         # CWE list
 #         cwe_list = cve_details.get("CWEs") or []
@@ -202,6 +199,7 @@
 
 #     except Exception as e:
 #         print(f"✘ Failed staging_id={staging_id}: {e}")
+#         traceback.print_exc()
 #         return False
 
 # # ------------------------- Main Normalization -------------------------
@@ -234,6 +232,8 @@
 # # ------------------------- Entrypoint -------------------------
 # if __name__ == "__main__":
 #     normalize_gradle()
+
+
 
 
 
@@ -334,23 +334,6 @@ def parse_date(d):
     except:
         return None
 
-def next_advisory_id(created_at, last_id_num):
-    return f"GRD-{created_at.strftime('%Y%m%d')}-{last_id_num+1:03d}"
-
-def get_last_advisory_number_for_date(cur, created_at):
-    cur.execute(f"""
-        SELECT advisory_id FROM {TABLE_ADVISORIES}
-        WHERE initial_release_date=%s
-        ORDER BY advisory_id DESC LIMIT 1
-    """, (created_at,))
-    row = cur.fetchone()
-    if not row:
-        return 0
-    try:
-        return int(row[0].split("-")[-1])
-    except:
-        return 0
-
 def get_or_create_vendor_id(cur, vendor_name):
     cur.execute("SELECT vendor_id FROM vendors WHERE vendor_name=%s", (vendor_name,))
     r = cur.fetchone()
@@ -372,8 +355,7 @@ def process_staging_row(cur, staging_id, raw_json):
         created_at = parse_date(data.get("Published_Date")) or datetime.today().date()
         title = clean_text(data.get("Title"))
         advisory_url = data.get("Link")
-        last_id_num = get_last_advisory_number_for_date(cur, created_at)
-        advisory_id = next_advisory_id(created_at, last_id_num)
+        advisory_id = data.get("GHSA_ID")  # <-- use GHSA_ID directly
         vendor_id = get_or_create_vendor_id(cur, "Gradle")
 
         # ------------------------- Insert Advisory with severity NULL -------------------------
